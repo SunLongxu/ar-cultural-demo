@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cultural AR Experience</title>
+  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-aframe.prod.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="loading">
+    <h1>Cultural AR Experience</h1>
+    <p>Loading immersive technology...</p>
+    <div class="loader"></div>
+  </div>
+  
+  <a-scene mindar-image="imageTargetSrc: assets/target.mind" loading-screen="enabled: false">
+    <a-assets>
+      <a-asset-item id="amphora" src="assets/amphora.glb"></a-asset-item>
+    </a-assets>
+    
+    <a-entity mindar-image-target="targetIndex: 0">
+      <!-- 3D Model -->
+      <a-entity id="artifact-model" gltf-model="#amphora" scale="0.05 0.05 0.05"></a-entity>
+      
+      <!-- Info Display -->
+      <a-entity id="info-panel" position="0 0.8 0" text="value:Point camera at Greek pattern; width: 6; color: #E6B87E"></a-entity>
+    </a-entity>
+    
+    <a-camera position="0 0 0"></a-camera>
+  </a-scene>
+  
+  <div id="controls">
+    <button id="design-btn" class="discipline-btn" onclick="changeDesign()">
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTIwLjcxIDcuMDRjLjM5LS4zOS4zOS0xLjAyIDAtMS40MWwtMi4zNC0yLjM0Yy0uMzktLjM5LTEuMDItLjM5LTEuNDEgMGwtMS44NCAxLjgzIDMuNzUgMy43NSAxLjg0LTEuODN6TTMuNTMgMTkuOTRsMi4zNCAyLjM0Yy4zOS4zOSAxLjAyLjM5IDEuNDEgMGw3LjA3LTcuMDdMOSA5bC05IDloMy45M3oiLz48L3N2Zz4=" alt="Design">
+      Design
+    </button>
+    <button id="history-btn" class="discipline-btn" onclick="showHistory()">
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTExLjlINHYyaDcuOVYxMy44YzAtMi40OSAyLjAxLTQuNSA0LjUtNC41czQuNSAyLjAxIDQuNSA0LjUtMi4wMSA0LjUtNC41IDQuNWMtMS44NiAwLTMuNDktMS4wOS00LjI0LTIuNjdoLTIuMWMuOTIgMi4wMSAyLjg3IDMuNDQgNS4zNCAzLjQ0IDMuMzEgMCA2LTIuNjkgNi02czIuNjktNiA2LTYgNiAyLjY5IDYgNnYxLjJoMlYxM2MwLTQuNDItMy41OC04LTgtOHMtOCAzLjU4LTggOGMwIDQuNDIgMy41OCA4IDggOHYtMnoiLz48L3N2Zz4=" alt="History">
+      History
+    </button>
+    <button id="business-btn" class="discipline-btn" onclick="showBusiness()">
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTIwIDRINGMjLTEuMTMgNC44OC0xLjEzIDYuOTkgMEgyMHYxNkg0VjRoMTZ6TTEwIDhoNHYxMGgtNHYtMTB6bTggMTBoNHYtMTBoLTR2MTB6TTYgOGg0djEwSDZ2LTEweiIvPjwvc3ZnPg==" alt="Business">
+      Business
+    </button>
+  </div>
+
+  <script>
+    // Hide loading screen when AR is ready
+    document.querySelector('a-scene').addEventListener('loaded', function() {
+      document.getElementById('loading').style.display = 'none';
+    });
+
+    // PRE-CONFIGURED FUNCTIONS
+    function changeDesign() {
+      const model = document.getElementById('artifact-model');
+      const scale = model.getAttribute('scale');
+      model.setAttribute('scale', {
+        x: scale.x * 1.2,
+        y: scale.y * 1.2,
+        z: scale.z * 1.2
+      });
+      showMessage("Design: Enhanced visual prominence\nScale increased by 20%");
+    }
+    
+    function showHistory() {
+      const artifactData = {
+        name: "Attic Amphora",
+        era: "5th Century BCE",
+        description: "Ceremonial vessel used for storing wine and oil. Decorated with scenes from Greek mythology.",
+        culturalSignificance: "Represents trade between Athens and other city-states. Often given as prizes in athletic competitions."
+      };
+      
+      const info = `${artifactData.name}\n${artifactData.era}\n\n${artifactData.description}\n\nCultural Significance: ${artifactData.culturalSignificance}`;
+      document.getElementById('info-panel').setAttribute('text', 'value', info);
+    }
+    
+    function showBusiness() {
+      const pricingModels = [
+        "Free: Basic content access",
+        "Premium ($4.99): AR reconstruction + expert commentary",
+        "Sponsorship: Branded educational content"
+      ].join('\n');
+      
+      showMessage(`Business Models:\n\n${pricingModels}`);
+    }
+    
+    function showMessage(text) {
+      document.getElementById('info-panel').setAttribute('text', 'value', text);
+    }
+  </script>
+</body>
+</html>
