@@ -278,6 +278,35 @@
       animation: pulse 2s infinite;
     }
     
+    #fallback-timer {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      z-index: 10;
+      backdrop-filter: blur(10px);
+      display: none;
+    }
+    
+    .fallback-mode {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.7);
+      padding: 15px 25px;
+      border-radius: 15px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+      border: 2px solid #ffcc00;
+      z-index: 20;
+      display: none;
+      max-width: 80%;
+    }
+    
     @keyframes pulse {
       0% { transform: translate(-50%, -50%) scale(1); }
       50% { transform: translate(-50%, -50%) scale(1.05); }
@@ -318,6 +347,12 @@
         right: 10px;
         max-width: 150px;
       }
+      
+      #fallback-timer {
+        top: 70px;
+        left: 10px;
+        max-width: 150px;
+      }
     }
   </style>
 </head>
@@ -339,6 +374,13 @@
     Target Detected! Artifact is now visible.
   </div>
   
+  <div id="fallback-timer">Fallback in: <span id="timer-value">5</span>s</div>
+  
+  <div class="fallback-mode" id="fallback-mode">
+    <h3>Fallback Mode Activated</h3>
+    <p>Model displayed without target detection</p>
+  </div>
+  
   <div id="ar-container">
     <canvas id="ar-canvas"></canvas>
     
@@ -352,7 +394,6 @@
       Point your camera at the Greek pattern to see the artifact
     </div>
     
-    <!-- Updated pattern guide with reliable image link -->
     <div id="pattern-guide">
       <img src="https://upload.wikimedia.org/wikipedia/commons/e/e3/Meander%2C_Greek_Key.png" alt="Greek Pattern">
       <p>Scan this pattern</p>
@@ -381,6 +422,9 @@
     let model = null;
     let anchorGroup = null;
     let targetDetected = false;
+    let fallbackMode = false;
+    let fallbackTimer = null;
+    let timeLeft = 5;
     
     // Update progress display
     function updateProgress(message, percent) {
@@ -429,6 +473,89 @@
       document.getElementById('design-btn').disabled = false;
       document.getElementById('history-btn').disabled = false;
       document.getElementById('business-btn').disabled = false;
+    }
+    
+    // Start fallback timer when target is lost
+    function startFallbackTimer() {
+      if (fallbackMode) return;
+      
+      timeLeft = 5;
+      const timerElement = document.getElementById('timer-value');
+      timerElement.textContent = timeLeft;
+      
+      document.getElementById('fallback-timer').style.display = 'block';
+      
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer);
+      }
+      
+      fallbackTimer = setInterval(() => {
+        timeLeft--;
+        timerElement.textContent = timeLeft;
+        
+        if (timeLeft <= 0) {
+          activateFallbackMode();
+          clearInterval(fallbackTimer);
+          fallbackTimer = null;
+        }
+      }, 1000);
+    }
+    
+    // Stop and reset fallback timer
+    function stopFallbackTimer() {
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer);
+        fallbackTimer = null;
+      }
+      document.getElementById('fallback-timer').style.display = 'none';
+    }
+    
+    // Activate fallback mode - display model without target detection
+    function activateFallbackMode() {
+      fallbackMode = true;
+      
+      // Show model regardless of target detection
+      model.visible = true;
+      
+      // Show fallback mode indicator
+      const fallbackPanel = document.getElementById('fallback-mode');
+      fallbackPanel.style.display = 'block';
+      
+      // Update tracking status
+      const trackingStatus = document.getElementById('tracking-status');
+      trackingStatus.textContent = "Fallback mode active";
+      trackingStatus.style.background = "rgba(245, 158, 11, 0.8)";
+      
+      // Hide pattern guide
+      document.getElementById('pattern-guide').style.display = 'none';
+      
+      // Show message
+      showMessage("Fallback mode activated. Model displayed without target detection.", 5000);
+    }
+    
+    // Deactivate fallback mode
+    function deactivateFallbackMode() {
+      if (!fallbackMode) return;
+      
+      fallbackMode = false;
+      
+      // Hide model if target is not detected
+      if (!targetDetected) {
+        model.visible = false;
+      }
+      
+      // Hide fallback mode indicator
+      document.getElementById('fallback-mode').style.display = 'none';
+      
+      // Reset tracking status
+      const trackingStatus = document.getElementById('tracking-status');
+      trackingStatus.textContent = "Target detected";
+      trackingStatus.style.background = "rgba(34, 197, 94, 0.8)";
+      
+      // Show pattern guide if target not detected
+      if (!targetDetected) {
+        document.getElementById('pattern-guide').style.display = 'block';
+      }
     }
     
     // Initialize AR experience
@@ -505,22 +632,42 @@
         // Show initial message
         showMessage("Point your camera at the Greek pattern to see the artifact", 5000);
         
+        // Add target detection event listeners
+        mindarThree.onTargetFound((targetIndex) => {
+          console.log("Target found");
+          targetDetected = true;
+          stopFallbackTimer();
+          deactivateFallbackMode();
+        });
+        
+        mindarThree.onTargetLost((targetIndex) => {
+          console.log("Target lost");
+          targetDetected = false;
+          startFallbackTimer();
+        });
+        
         // Render loop
         renderer.setAnimationLoop(() => {
           // Update tracking status
           const trackingStatus = document.getElementById('tracking-status');
           
-          // SAFE CHECK: Ensure anchorGroup exists
-          if (anchorGroup && anchorGroup.group.visible) {
-            trackingStatus.textContent = "Target detected";
-            trackingStatus.style.background = "rgba(34, 197, 94, 0.8)";
+          if (fallbackMode) {
+            // In fallback mode, model is always visible
             model.visible = true;
+          } else {
+            // In normal mode, model visibility depends on target detection
+            model.visible = anchorGroup.group.visible;
+          }
+          
+          if (anchorGroup.group.visible || fallbackMode) {
+            trackingStatus.textContent = fallbackMode ? "Fallback mode active" : "Target detected";
+            trackingStatus.style.background = fallbackMode ? "rgba(245, 158, 11, 0.8)" : "rgba(34, 197, 94, 0.8)";
             
-            // Hide pattern guide when target is detected
+            // Hide pattern guide when target is detected or in fallback mode
             document.getElementById('pattern-guide').style.display = 'none';
             
-            // Show success message only once
-            if (!targetDetected) {
+            // Show success message only once and only in normal mode
+            if (!targetDetected && !fallbackMode) {
               showSuccessMessage();
               targetDetected = true;
             }
