@@ -70,7 +70,7 @@
       position: relative;
       width: 100%;
       height: 100%;
-      display: none; /* Initially hidden */
+      display: none;
     }
     
     #ar-canvas {
@@ -178,6 +178,8 @@
       font-size: 0.9rem;
       z-index: 10;
       backdrop-filter: blur(10px);
+      max-width: 200px;
+      text-align: center;
     }
     
     #instructions {
@@ -197,8 +199,8 @@
     
     #pattern-guide {
       position: absolute;
-      top: 20px;
-      right: 20px;
+      bottom: 150px;
+      left: 20px;
       background: rgba(255, 255, 255, 0.9);
       padding: 15px;
       border-radius: 10px;
@@ -206,7 +208,7 @@
       text-align: center;
       width: 180px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      display: none; /* Initially hidden */
+      display: none;
     }
     
     #pattern-guide img {
@@ -306,9 +308,15 @@
       }
       
       #pattern-guide {
-        top: 10px;
+        bottom: 180px;
+        left: 10px;
+        width: 150px;
+      }
+      
+      #tracking-status {
+        top: 70px;
         right: 10px;
-        width: 120px;
+        max-width: 150px;
       }
     }
   </style>
@@ -344,9 +352,9 @@
       Point your camera at the Greek pattern to see the artifact
     </div>
     
-    <!-- Updated pattern guide - smaller and in corner -->
+    <!-- Updated pattern guide with reliable image link -->
     <div id="pattern-guide">
-      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxODAiIGhlaWdodD0iMTgwIiB2aWV3Qm94PSIwIDAgMTgwIDE4MCI+PHJlY3Qgd2lkdGg9IjE4MCIgaGVpZ2h0PSIxODAiIGZpbGw9IiNmZmYiLz48cGF0aCBkPSJNMCA0NUgxODBWMGgweicgZmlsbD0nIzMzMycvPjxwYXRoIGQ9J00wIDkwSDE4MFY0NUgweicgZmlsbD0nI2ZmZicvPjxwYXRoIGQ9J00wIDEzNUgxODBWOTBIMHonIGZpbGw9JyMzMzMnLz48cGF0aCBkPSdNMCAxODBIMTgwVjEzNUgweicgZmlsbD0nI2ZmZicvPjxwYXRoIGQ9J00gNDUgMEgwVjE4MEg0NVYweicgZmlsbD0nIzMzMycvPjxwYXRoIGQ9J009MCAwSDQ1VjE4MEg5MFYweicgZmlsbD0nI2ZmZicvPjxwYXRoIGQ9J00xMzUgMEg5MFYxODBIMTM1VjB6JyBmaWxsPScjMzMzJy8+PHBhdGggZD0nTTE4MCAwSDEzNVYxODBIMTgwVjB6JyBmaWxsPScjZmZmJy8+PC9zdmc+" alt="Greek Pattern">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/e/e3/Meander%2C_Greek_Key.png" alt="Greek Pattern">
       <p>Scan this pattern</p>
       <p class="hint">Print or display on another device</p>
     </div>
@@ -372,6 +380,7 @@
     let mindarThree = null;
     let model = null;
     let anchorGroup = null;
+    let targetDetected = false;
     
     // Update progress display
     function updateProgress(message, percent) {
@@ -511,9 +520,9 @@
             document.getElementById('pattern-guide').style.display = 'none';
             
             // Show success message only once
-            if (!window.targetDetected) {
+            if (!targetDetected) {
               showSuccessMessage();
-              window.targetDetected = true;
+              targetDetected = true;
             }
           } else {
             trackingStatus.textContent = "Target not detected";
@@ -522,7 +531,7 @@
             
             // Show pattern guide when target is not detected
             document.getElementById('pattern-guide').style.display = 'block';
-            window.targetDetected = false;
+            targetDetected = false;
           }
           
           // Update model rotation when visible
@@ -571,9 +580,6 @@
       document.getElementById('loading').style.display = 'flex';
       initAR();
     });
-    
-    // Initialize global flag
-    window.targetDetected = false;
     
     // Start AR application
     initAR();
