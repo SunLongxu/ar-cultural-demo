@@ -168,31 +168,6 @@
       filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
     }
     
-    .pattern-container {
-      position: absolute;
-      bottom: 120px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.9);
-      padding: 10px;
-      border-radius: 10px;
-      z-index: 10;
-      text-align: center;
-      display: none;
-    }
-    
-    .pattern-container img {
-      width: 150px;
-      height: 150px;
-      border: 1px solid #ccc;
-    }
-    
-    .pattern-container p {
-      color: #333;
-      font-weight: bold;
-      margin-top: 8px;
-    }
-    
     #tracking-status {
       position: absolute;
       top: 10px;
@@ -217,6 +192,39 @@
       backdrop-filter: blur(10px);
       z-index: 10;
       max-width: 90%;
+      width: 90%;
+    }
+    
+    #pattern-guide {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 15px;
+      border-radius: 10px;
+      z-index: 10;
+      text-align: center;
+      width: 180px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      display: none; /* Initially hidden */
+    }
+    
+    #pattern-guide img {
+      width: 100%;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
+    }
+    
+    #pattern-guide p {
+      color: #333;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+    
+    #pattern-guide .hint {
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 5px;
     }
     
     #error-panel {
@@ -250,6 +258,30 @@
       margin-top: 15px;
     }
     
+    .success-message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(34, 197, 94, 0.9);
+      padding: 20px 30px;
+      border-radius: 15px;
+      text-align: center;
+      z-index: 105;
+      display: none;
+      max-width: 90%;
+      width: 300px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.05); }
+      100% { transform: translate(-50%, -50%) scale(1); }
+    }
+    
     @media (max-width: 768px) {
       #controls {
         flex-wrap: wrap;
@@ -272,6 +304,12 @@
         bottom: 150px;
         width: 95%;
       }
+      
+      #pattern-guide {
+        top: 10px;
+        right: 10px;
+        width: 120px;
+      }
     }
   </style>
 </head>
@@ -289,6 +327,10 @@
     <button id="retry-btn">Retry</button>
   </div>
   
+  <div class="success-message" id="success-message">
+    Target Detected! Artifact is now visible.
+  </div>
+  
   <div id="ar-container">
     <canvas id="ar-canvas"></canvas>
     
@@ -302,9 +344,11 @@
       Point your camera at the Greek pattern to see the artifact
     </div>
     
-    <div class="pattern-container">
+    <!-- Updated pattern guide - smaller and in corner -->
+    <div id="pattern-guide">
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxODAiIGhlaWdodD0iMTgwIiB2aWV3Qm94PSIwIDAgMTgwIDE4MCI+PHJlY3Qgd2lkdGg9IjE4MCIgaGVpZ2h0PSIxODAiIGZpbGw9IiNmZmYiLz48cGF0aCBkPSJNMCA0NUgxODBWMGgweicgZmlsbD0nIzMzMycvPjxwYXRoIGQ9J00wIDkwSDE4MFY0NUgweicgZmlsbD0nI2ZmZicvPjxwYXRoIGQ9J00wIDEzNUgxODBWOTBIMHonIGZpbGw9JyMzMzMnLz48cGF0aCBkPSdNMCAxODBIMTgwVjEzNUgweicgZmlsbD0nI2ZmZicvPjxwYXRoIGQ9J00gNDUgMEgwVjE4MEg0NVYweicgZmlsbD0nIzMzMycvPjxwYXRoIGQ9J009MCAwSDQ1VjE4MEg5MFYweicgZmlsbD0nI2ZmZicvPjxwYXRoIGQ9J00xMzUgMEg5MFYxODBIMTM1VjB6JyBmaWxsPScjMzMzJy8+PHBhdGggZD0nTTE4MCAwSDEzNVYxODBIMTgwVjB6JyBmaWxsPScjZmZmJy8+PC9zdmc+" alt="Greek Pattern">
       <p>Scan this pattern</p>
-      <img id="pattern-img" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMjAwIDIwMCI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNmZmYiLz48cGF0aCBkPSJNMCA1MEgyMDBWMEgweiIgZmlsbD0iIzMzMyIvPjxwYXRoIGQ9Ik0wIDEwMEgyMDBWNTBIMHoiIGZpbGw9IiNmZmYiLz48cGF0aCBkPSJNMCAxNTBIMjAwVjEwMEgweiIgZmlsbD0iIzMzMyIvPjxwYXRoIGQ9Ik0wIDIwMEgyMDBWMTUwSDB6IiBmaWxsPSIjZmZmIi8+PHBhdGggZD0iTTUwIDBIMFYyMDBINTBWMHoiIGZpbGw9IiMzMzMiLz48cGF0aCBkPSJNMTAwIDBINDBWMjAwSDEwMFYweiIgZmlsbD0iI2ZmZiIvPjxwYXRoIGQ9Ik0xNTAgMEgxMDBWMjAwSDE1MFYweiIgZmlsbD0iIzMzMyIvPjxwYXRoIGQ9Ik0yMDAgMEgxNTBWMjAwSDIwMFYweiIgZmlsbD0iI2ZmZiIvPjwvc3ZnPg==" alt="Greek Pattern">
+      <p class="hint">Print or display on another device</p>
     </div>
     
     <div id="controls">
@@ -347,6 +391,16 @@
           infoPanel.style.display = 'none';
         }, duration);
       }
+    }
+    
+    // Show success message
+    function showSuccessMessage(duration = 3000) {
+      const successMsg = document.getElementById('success-message');
+      successMsg.style.display = 'block';
+      
+      setTimeout(() => {
+        successMsg.style.display = 'none';
+      }, duration);
     }
     
     // Show error message
@@ -430,11 +484,11 @@
         // Show AR container
         document.getElementById('ar-container').style.display = 'block';
         
+        // Show pattern guide
+        document.getElementById('pattern-guide').style.display = 'block';
+        
         // Hide loading screen
         document.getElementById('loading').style.display = 'none';
-        
-        // Show pattern container
-        document.querySelector('.pattern-container').style.display = 'block';
         
         // Enable buttons
         enableButtons();
@@ -451,9 +505,24 @@
           if (anchorGroup && anchorGroup.group.visible) {
             trackingStatus.textContent = "Target detected";
             trackingStatus.style.background = "rgba(34, 197, 94, 0.8)";
+            model.visible = true;
+            
+            // Hide pattern guide when target is detected
+            document.getElementById('pattern-guide').style.display = 'none';
+            
+            // Show success message only once
+            if (!window.targetDetected) {
+              showSuccessMessage();
+              window.targetDetected = true;
+            }
           } else {
             trackingStatus.textContent = "Target not detected";
             trackingStatus.style.background = "rgba(220, 38, 38, 0.8)";
+            model.visible = false;
+            
+            // Show pattern guide when target is not detected
+            document.getElementById('pattern-guide').style.display = 'block';
+            window.targetDetected = false;
           }
           
           // Update model rotation when visible
@@ -502,6 +571,9 @@
       document.getElementById('loading').style.display = 'flex';
       initAR();
     });
+    
+    // Initialize global flag
+    window.targetDetected = false;
     
     // Start AR application
     initAR();
