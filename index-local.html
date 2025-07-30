@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Model Viewer - Desktop Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f);
+            color: white;
+            overflow: hidden;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .controls button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .controls button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 5px;
+            backdrop-filter: blur(10px);
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .loading h2 {
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .progress-bar {
+            width: 300px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <video id="video" autoplay muted playsinline style="display: none;"></video>
+        <canvas id="canvas"></canvas>
+        
+        <div class="controls">
+            <button onclick="switchModel()">Switch Model</button>
+            <button onclick="resetCamera()">Reset Camera</button>
+            <button onclick="toggleRotation()">Toggle Rotation</button>
+            <button onclick="toggleAR()">Toggle AR Mode</button>
+        </div>
+        
+        <div class="status" id="status">
+            Loading...
+        </div>
+        
+        <div class="loading" id="loading">
+            <h2>Loading 3D Model</h2>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let scene, camera, renderer;
+        let model, allModels = [];
+        let currentModelIndex = 0;
+        let isRotating = true;
+        let mouseX = 0, mouseY = 0;
+        let isMouseDown = false;
+        let isARMode = false;
+        let videoElement;
+
+        // Load Three.js
+        async function loadThreeJS() {
+            const sources = [
+                'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+                'https://unpkg.com/three@0.128.0/build/three.min.js',
+                'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
+                './three.min.js'
+            ];
+
+            for (const src of sources) {
+                try {
+                    await loadScript(src);
+                    if (typeof THREE !== 'undefined') {
+                        console.log('Three.js loaded successfully from:', src);
+                        return;
+                    }
+                } catch (error) {
+                    console.warn(`Failed to load from ${src}:`, error);
+                }
+            }
+            throw new Error('Failed to load Three.js from all sources');
+        }
+
+        // Load GLTFLoader
+        async function loadGLTFLoader() {
+            const sources = [
+                './GLTFLoader.js',
+                'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js',
+                'https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js'
+            ];
+
+            for (const src of sources) {
+                try {
+                    await loadScript(src);
+                    if (typeof THREE.GLTFLoader !== 'undefined') {
+                        console.log('GLTFLoader loaded successfully from:', src);
+                        return;
+                    }
+                } catch (error) {
+                    console.warn(`Failed to load GLTFLoader from ${src}:`, error);
+                }
+            }
+        }
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        function updateProgress(message, percent) {
+            document.getElementById('status').textContent = message;
+            document.getElementById('progress-fill').style.width = percent + '%';
+        }
+
+        // Initialize 3D scene
+        async function init() {
+            try {
+                updateProgress('Loading Three.js...', 20);
+                await loadThreeJS();
+                
+                updateProgress('Loading GLTFLoader...', 40);
+                await loadGLTFLoader();
+                
+                updateProgress('Setting up scene...', 60);
+                
+                // Create scene
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x000000);
+                
+                // Create camera
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.set(0, 0, 5);
+                
+                // Get video element
+                videoElement = document.getElementById('video');
+                
+                // Create renderer
+                renderer = new THREE.WebGLRenderer({ 
+                    canvas: document.getElementById('canvas'),
+                    antialias: true 
+                });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                
+                // Add lights
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                scene.add(ambientLight);
+                
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(10, 10, 10);
+                directionalLight.castShadow = true;
+                scene.add(directionalLight);
+                
+                updateProgress('Loading 3D models...', 80);
+                
+                // Load models
+                await loadModels();
+                
+                updateProgress('Starting render loop...', 90);
+                
+                // Start render loop
+                animate();
+                
+                // Hide loading screen
+                document.getElementById('loading').style.display = 'none';
+                updateProgress('Ready!', 100);
+                
+                // Add event listeners
+                addEventListeners();
+                
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                updateProgress('Error: ' + error.message, 0);
+            }
+        }
+
+        // Load 3D models
+        async function loadModels() {
+            const modelPaths = [
+                './assets/amphora.glb',
+                './assets/amphora_s.glb', 
+                './assets/jug.glb'
+            ];
+
+            let gltfLoaderAvailable = typeof THREE.GLTFLoader !== 'undefined';
+            
+            if (gltfLoaderAvailable) {
+                console.log('GLTFLoader is available, attempting to load 3D models');
+                for (const modelPath of modelPaths) {
+                    try {
+                        const loadedModel = await loadModel(modelPath);
+                        allModels.push(loadedModel);
+                        console.log(`Successfully loaded model from: ${modelPath}`);
+                    } catch (error) {
+                        console.warn(`Failed to load model from ${modelPath}:`, error);
+                    }
+                }
+            } else {
+                console.log('GLTFLoader not available, will use fallback models');
+            }
+
+            // Create fallback models if none loaded
+            if (allModels.length === 0) {
+                console.log('Creating fallback models');
+                const fallbackColors = [0x3498db, 0xe74c3c, 0x2ecc71, 0xf39c12];
+                const fallbackNames = ['Blue Box', 'Red Box', 'Green Box', 'Orange Box'];
+                
+                for (let i = 0; i < 4; i++) {
+                    const geometry = new THREE.BoxGeometry(1, 1, 1);
+                    const material = new THREE.MeshPhongMaterial({ 
+                        color: fallbackColors[i],
+                        shininess: 100,
+                        specular: 0xffffff
+                    });
+                    
+                    const fallbackModel = new THREE.Mesh(geometry, material);
+                    fallbackModel.scale.set(0.5, 0.5, 0.5);
+                    fallbackModel.name = fallbackNames[i];
+                    allModels.push(fallbackModel);
+                }
+                console.log('Created 4 fallback box models');
+            }
+
+            // Set current model
+            if (allModels.length > 0) {
+                model = allModels[0];
+                scene.add(model);
+                console.log('Model added to scene:', model.name);
+            }
+        }
+
+        // Load individual model
+        async function loadModel(modelPath) {
+            if (typeof THREE.GLTFLoader === 'undefined') {
+                throw new Error('GLTFLoader not available');
+            }
+            
+            const loader = new THREE.GLTFLoader();
+            const gltf = await loader.loadAsync(modelPath);
+            const loadedModel = gltf.scene;
+            
+            loadedModel.scale.set(0.5, 0.5, 0.5);
+            loadedModel.position.set(0, 0, 0);
+            
+            loadedModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        child.material.needsUpdate = true;
+                    }
+                }
+            });
+            
+            return loadedModel;
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (isARMode && videoElement && videoElement.videoWidth > 0) {
+                // AR mode: render video background
+                renderer.autoClear = false;
+                renderer.clear();
+                
+                // Create video texture if not exists
+                if (!renderer.videoTexture) {
+                    renderer.videoTexture = new THREE.VideoTexture(videoElement);
+                    renderer.videoTexture.minFilter = THREE.LinearFilter;
+                    renderer.videoTexture.magFilter = THREE.LinearFilter;
+                }
+                
+                // Update video texture
+                renderer.videoTexture.needsUpdate = true;
+                
+                // Create background plane
+                if (!renderer.backgroundPlane) {
+                    const geometry = new THREE.PlaneGeometry(2, 2);
+                    const material = new THREE.MeshBasicMaterial({ 
+                        map: renderer.videoTexture,
+                        side: THREE.DoubleSide
+                    });
+                    renderer.backgroundPlane = new THREE.Mesh(geometry, material);
+                    renderer.backgroundPlane.position.z = -1;
+                    scene.add(renderer.backgroundPlane);
+                }
+                
+                // Position model in front of camera
+                if (model) {
+                    model.position.set(0, 0, 0);
+                    model.scale.set(0.3, 0.3, 0.3);
+                }
+            } else {
+                // Normal mode: clear background
+                renderer.autoClear = true;
+                if (renderer.backgroundPlane) {
+                    scene.remove(renderer.backgroundPlane);
+                    renderer.backgroundPlane = null;
+                }
+                
+                // Position model normally
+                if (model) {
+                    model.position.set(0, 0, 0);
+                    model.scale.set(0.5, 0.5, 0.5);
+                }
+            }
+            
+            if (model && isRotating) {
+                model.rotation.y += 0.01;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        // Event listeners
+        function addEventListeners() {
+            // Mouse controls
+            document.addEventListener('mousedown', onMouseDown);
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+            
+            // Window resize
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onMouseDown(event) {
+            isMouseDown = true;
+            mouseX = event.clientX;
+            mouseY = event.clientY;
+        }
+
+        function onMouseMove(event) {
+            if (isMouseDown) {
+                const deltaX = event.clientX - mouseX;
+                const deltaY = event.clientY - mouseY;
+                
+                if (model) {
+                    model.rotation.y += deltaX * 0.01;
+                    model.rotation.x += deltaY * 0.01;
+                }
+                
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            }
+        }
+
+        function onMouseUp() {
+            isMouseDown = false;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Control functions
+        function switchModel() {
+            if (allModels.length === 0) return;
+            
+            if (model) {
+                scene.remove(model);
+            }
+            
+            currentModelIndex = (currentModelIndex + 1) % allModels.length;
+            model = allModels[currentModelIndex];
+            scene.add(model);
+            
+            document.getElementById('status').textContent = `Model: ${model.name}`;
+        }
+
+        function resetCamera() {
+            camera.position.set(0, 0, 5);
+            if (model) {
+                model.rotation.set(0, 0, 0);
+            }
+        }
+
+        function toggleRotation() {
+            isRotating = !isRotating;
+            document.getElementById('status').textContent = `Rotation: ${isRotating ? 'ON' : 'OFF'}`;
+        }
+
+        function toggleAR() {
+            isARMode = !isARMode;
+            
+            if (isARMode) {
+                // Start camera
+                startCamera();
+                document.getElementById('status').textContent = 'AR Mode: ON - Camera active';
+            } else {
+                // Stop camera
+                stopCamera();
+                document.getElementById('status').textContent = 'AR Mode: OFF';
+            }
+        }
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'user'
+                    } 
+                });
+                
+                videoElement.srcObject = stream;
+                videoElement.play();
+                
+                console.log('Camera started successfully');
+            } catch (error) {
+                console.error('Failed to start camera:', error);
+                document.getElementById('status').textContent = 'Camera access denied';
+                isARMode = false;
+            }
+        }
+
+        function stopCamera() {
+            if (videoElement.srcObject) {
+                const tracks = videoElement.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+        }
+
+        // Start the application
+        init();
+    </script>
+</body>
+</html> 

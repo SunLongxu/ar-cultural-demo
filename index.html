@@ -4,8 +4,117 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cultural AR Experience</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
+  <!-- Load Three.js from multiple sources for reliability -->
+  <script>
+    // Try to load Three.js from multiple sources
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    // Try multiple Three.js sources
+    async function loadThreeJS() {
+      const sources = [
+        'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+        'https://unpkg.com/three@0.128.0/build/three.min.js',
+        'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
+        './three.min.js' // Local fallback
+      ];
+
+      for (const src of sources) {
+        try {
+          await loadScript(src);
+          console.log('Three.js loaded successfully from:', src);
+          return;
+        } catch (error) {
+          console.warn('Failed to load Three.js from:', src, error);
+        }
+      }
+      throw new Error('Failed to load Three.js from all sources');
+    }
+
+    // Load MindAR
+    async function loadMindAR() {
+      try {
+        await loadScript('https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js');
+        console.log('MindAR loaded successfully');
+      } catch (error) {
+        console.warn('Failed to load MindAR from CDN, trying local file');
+        try {
+          await loadScript('./mindar-test.js');
+          console.log('MindAR loaded successfully from local file');
+        } catch (localError) {
+          throw new Error('Failed to load MindAR from both CDN and local file');
+        }
+      }
+    }
+    
+    // Load GLTFLoader for 3D models
+    async function loadGLTFLoader() {
+      const gltfLoaderSources = [
+        './GLTFLoader.js', // Local file first
+        'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js',
+        'https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js',
+        'https://raw.githubusercontent.com/mrdoob/three.js/r128/examples/js/loaders/GLTFLoader.js'
+      ];
+
+      for (const src of gltfLoaderSources) {
+        try {
+          await loadScript(src);
+          console.log('GLTFLoader loaded successfully from:', src);
+          return;
+        } catch (error) {
+          console.warn('Failed to load GLTFLoader from:', src, error);
+        }
+      }
+      
+      // If all sources fail, try to create a basic GLTFLoader
+      console.warn('All GLTFLoader sources failed, creating basic loader');
+      try {
+        // Create a basic GLTFLoader if Three.js is available
+        if (typeof THREE !== 'undefined') {
+          // Basic GLTFLoader implementation
+          THREE.GLTFLoader = function() {
+            this.loadAsync = function(url) {
+              return new Promise((resolve, reject) => {
+                console.warn('Basic GLTFLoader: Cannot load GLB files, using fallback');
+                reject(new Error('GLTFLoader not fully available'));
+              });
+            };
+          };
+          console.log('Basic GLTFLoader created');
+        }
+      } catch (error) {
+        console.warn('Could not create basic GLTFLoader:', error);
+      }
+    }
+
+    // Load all required libraries
+    (async function() {
+      try {
+        await loadThreeJS();
+        await loadMindAR();
+        await loadGLTFLoader(); // Load GLTFLoader for 3D models
+        console.log('All libraries loaded successfully');
+      } catch (error) {
+        console.error('Failed to load libraries:', error);
+        // Show error to user when DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function() {
+            showError('Failed to load required libraries: ' + error.message);
+          });
+        } else {
+          showError('Failed to load required libraries: ' + error.message);
+        }
+      }
+    })();
+  </script>
   <style>
     * {
       margin: 0;
@@ -77,10 +186,18 @@
       position: absolute;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
       z-index: 1;
+      display: none; /* Initially hidden */
+      cursor: grab;
     }
+    
+    #ar-canvas:active {
+      cursor: grabbing;
+    }
+    
+    /* Removed interaction controls CSS - now integrated directly with model */
     
     #controls {
       position: absolute;
@@ -278,34 +395,9 @@
       animation: pulse 2s infinite;
     }
     
-    #fallback-timer {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(0, 0, 0, 0.7);
-      padding: 8px 15px;
-      border-radius: 20px;
-      font-size: 0.9rem;
-      z-index: 10;
-      backdrop-filter: blur(10px);
-      display: none;
-    }
+    /* Removed fallback timer CSS */
     
-    .fallback-mode {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.7);
-      padding: 15px 25px;
-      border-radius: 15px;
-      text-align: center;
-      backdrop-filter: blur(10px);
-      border: 2px solid #ffcc00;
-      z-index: 20;
-      display: none;
-      max-width: 80%;
-    }
+
     
     @keyframes pulse {
       0% { transform: translate(-50%, -50%) scale(1); }
@@ -348,11 +440,7 @@
         max-width: 150px;
       }
       
-      #fallback-timer {
-        top: 70px;
-        left: 10px;
-        max-width: 150px;
-      }
+      /* Removed fallback timer mobile CSS */
     }
   </style>
 </head>
@@ -374,31 +462,30 @@
     Target Detected! Artifact is now visible.
   </div>
   
-  <div id="fallback-timer">Fallback in: <span id="timer-value">5</span>s</div>
+  <!-- Removed fallback timer display -->
   
-  <div class="fallback-mode" id="fallback-mode">
-    <h3>Fallback Mode Activated</h3>
-    <p>Model displayed without target detection</p>
-  </div>
+
   
-  <div id="ar-container">
-    <canvas id="ar-canvas"></canvas>
-    
-    <div id="info-panel">
-      <div id="info-text"></div>
-    </div>
-    
-    <div id="tracking-status">Target not detected</div>
-    
-    <div id="instructions">
-      Point your camera at the Greek pattern to see the artifact
-    </div>
-    
-    <div id="pattern-guide">
-      <img src="https://upload.wikimedia.org/wikipedia/commons/e/e3/Meander%2C_Greek_Key.png" alt="Greek Pattern">
-      <p>Scan this pattern</p>
-      <p class="hint">Print or display on another device</p>
-    </div>
+      <div id="ar-container">
+      <canvas id="ar-canvas"></canvas>
+      
+      <div id="info-panel">
+        <div id="info-text"></div>
+      </div>
+      
+      <div id="tracking-status">Target not detected</div>
+      
+      <div id="instructions">
+        Point your camera at the Greek pattern to see the artifact
+      </div>
+      
+      <div id="pattern-guide">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/e/e3/Meander%2C_Greek_Key.png" alt="Greek Pattern">
+        <p>Scan this pattern</p>
+        <p class="hint">Print or display on another device</p>
+      </div>
+      
+      <!-- Removed interaction controls - now integrated directly with model -->
     
     <div id="controls">
       <button id="design-btn" class="discipline-btn" disabled>
@@ -410,8 +497,8 @@
         History
       </button>
       <button id="business-btn" class="discipline-btn" disabled>
-        <svg class="icon" viewBox="0 0 24 24"><path fill="currentColor" d="M20,4H4C2.9,4,2.01,4.9,2.01,6L2,18c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V6C22,4.9,21.1,4,20,4z M10,8h4v10h-4V8z M8,8v10H4V8H8z M20,18h-4V8h4V18z"/></svg>
-        Business
+        <svg class="icon" viewBox="0 0 24 24"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/></svg>
+        Pricing
       </button>
     </div>
   </div>
@@ -425,6 +512,14 @@
     let fallbackMode = false;
     let fallbackTimer = null;
     let timeLeft = 5;
+    
+    // Mouse interaction variables (like index-local.html)
+    let isMouseDown = false;
+    let mouseX = 0;
+    let mouseY = 0;
+    
+    // Touch interaction variables
+    let scaleStartDistance = 0;
     
     // Update progress display
     function updateProgress(message, percent) {
@@ -468,100 +563,114 @@
       console.error("AR Error: ", message);
     }
     
+    // Global function to show error (for library loading)
+    window.showError = showError;
+    
     // Enable buttons
     function enableButtons() {
-      document.getElementById('design-btn').disabled = false;
-      document.getElementById('history-btn').disabled = false;
-      document.getElementById('business-btn').disabled = false;
-    }
-    
-    // Start fallback timer when target is lost
-    function startFallbackTimer() {
-      if (fallbackMode) return;
+      const designBtn = document.getElementById('design-btn');
+      const historyBtn = document.getElementById('history-btn');
+      const businessBtn = document.getElementById('business-btn');
       
-      timeLeft = 5;
-      const timerElement = document.getElementById('timer-value');
-      timerElement.textContent = timeLeft;
-      
-      document.getElementById('fallback-timer').style.display = 'block';
-      
-      if (fallbackTimer) {
-        clearInterval(fallbackTimer);
+      if (designBtn) {
+        designBtn.disabled = false;
+        console.log('✅ Design button enabled');
+      } else {
+        console.error('❌ Design button not found');
       }
       
-      fallbackTimer = setInterval(() => {
-        timeLeft--;
-        timerElement.textContent = timeLeft;
-        
-        if (timeLeft <= 0) {
-          activateFallbackMode();
-          clearInterval(fallbackTimer);
-          fallbackTimer = null;
+      if (historyBtn) {
+        historyBtn.disabled = false;
+        console.log('✅ History button enabled');
+      } else {
+        console.error('❌ History button not found');
+      }
+      
+      if (businessBtn) {
+        businessBtn.disabled = false;
+        console.log('✅ Business button enabled');
+      } else {
+        console.error('❌ Business button not found');
+      }
+    }
+    
+    // Removed fallback timer functionality
+    
+    // Removed fallback timer stop functionality
+    
+            // Activate fallback mode - display model without target detection
+        function activateFallbackMode() {
+          fallbackMode = true;
+          
+          // Update tracking status
+          const trackingStatus = document.getElementById('tracking-status');
+          trackingStatus.textContent = "Fallback mode active - showing model in video";
+          trackingStatus.style.background = "rgba(245, 158, 11, 0.8)";
+          
+          // Hide pattern guide
+          document.getElementById('pattern-guide').style.display = 'none';
+          
+          // Show message
+          showMessage("Fallback mode activated. Model displayed in camera video.", 5000);
         }
-      }, 1000);
-    }
     
-    // Stop and reset fallback timer
-    function stopFallbackTimer() {
-      if (fallbackTimer) {
-        clearInterval(fallbackTimer);
-        fallbackTimer = null;
-      }
-      document.getElementById('fallback-timer').style.display = 'none';
-    }
-    
-    // Activate fallback mode - display model without target detection
-    function activateFallbackMode() {
-      fallbackMode = true;
-      
-      // Show model regardless of target detection
-      model.visible = true;
-      
-      // Show fallback mode indicator
-      const fallbackPanel = document.getElementById('fallback-mode');
-      fallbackPanel.style.display = 'block';
-      
-      // Update tracking status
-      const trackingStatus = document.getElementById('tracking-status');
-      trackingStatus.textContent = "Fallback mode active";
-      trackingStatus.style.background = "rgba(245, 158, 11, 0.8)";
-      
-      // Hide pattern guide
-      document.getElementById('pattern-guide').style.display = 'none';
-      
-      // Show message
-      showMessage("Fallback mode activated. Model displayed without target detection.", 5000);
-    }
-    
-    // Deactivate fallback mode
-    function deactivateFallbackMode() {
-      if (!fallbackMode) return;
-      
-      fallbackMode = false;
-      
-      // Hide model if target is not detected
-      if (!targetDetected) {
-        model.visible = false;
-      }
-      
-      // Hide fallback mode indicator
-      document.getElementById('fallback-mode').style.display = 'none';
-      
-      // Reset tracking status
-      const trackingStatus = document.getElementById('tracking-status');
-      trackingStatus.textContent = "Target detected";
-      trackingStatus.style.background = "rgba(34, 197, 94, 0.8)";
-      
-      // Show pattern guide if target not detected
-      if (!targetDetected) {
-        document.getElementById('pattern-guide').style.display = 'block';
-      }
-    }
+            // Deactivate fallback mode
+        function deactivateFallbackMode() {
+          if (!fallbackMode) return;
+          
+          fallbackMode = false;
+          
+          // Reset tracking status
+          const trackingStatus = document.getElementById('tracking-status');
+          if (targetDetected) {
+            trackingStatus.textContent = "Target detected";
+            trackingStatus.style.background = "rgba(34, 197, 94, 0.8)";
+          } else {
+            trackingStatus.textContent = "Target not detected - showing model in video";
+            trackingStatus.style.background = "rgba(220, 38, 38, 0.8)";
+          }
+          
+          // Show pattern guide if target not detected
+          if (!targetDetected) {
+            document.getElementById('pattern-guide').style.display = 'block';
+          }
+        }
     
     // Initialize AR experience
     async function initAR() {
       try {
         updateProgress('Starting AR engine', 20);
+        
+        // Wait for libraries to load with timeout
+        let attempts = 0;
+        const maxAttempts = 50; // 5 seconds with 100ms intervals
+        
+        while (attempts < maxAttempts) {
+          if (typeof THREE !== 'undefined' && window.MINDAR && window.MINDAR.IMAGE) {
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, 100));
+          attempts++;
+        }
+        
+        // Check if Three.js is available
+        if (typeof THREE === 'undefined') {
+          throw new Error('Three.js library not loaded - please check your internet connection and try again');
+        }
+        console.log('Three.js loaded successfully');
+        
+        // Check if MindAR is available
+        if (!window.MINDAR) {
+          throw new Error('MindAR library not loaded - please check your internet connection and try again');
+        }
+        
+        if (!window.MINDAR.IMAGE) {
+          throw new Error('MindAR IMAGE module not loaded - please check your internet connection and try again');
+        }
+        
+        console.log('MindAR loaded successfully');
+        console.log('MindAR version:', window.MINDAR.VERSION);
+        console.log('MindAR.IMAGE available:', !!window.MINDAR.IMAGE.MindARThree);
         
         // Create MindAR instance
         mindarThree = new window.MINDAR.IMAGE.MindARThree({
@@ -574,7 +683,10 @@
           uiLoading: 'no'
         });
         
-        const { renderer, scene, camera } = mindarThree;
+        console.log('MindAR instance created:', mindarThree);
+        
+        const { renderer, camera } = mindarThree;
+        scene = mindarThree.scene; // Assign to global scene variable
         
         // Set up renderer
         const canvas = document.getElementById('ar-canvas');
@@ -591,31 +703,349 @@
         directionalLight.position.set(10, 10, 10);
         scene.add(directionalLight);
         
-        // Create a placeholder model (box)
-        updateProgress('Creating 3D model', 60);
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const material = new THREE.MeshPhongMaterial({ 
-          color: 0x3498db,
-          shininess: 100,
-          specular: 0xffffff
-        });
+        // Load 3D model
+        updateProgress('Loading 3D model', 60);
         
-        model = new THREE.Mesh(geometry, material);
-        model.scale.set(0.3, 0.3, 0.3);
-        model.visible = false;
+        // Function to load GLB/GLTF model
+        async function loadModel(modelPath) {
+          try {
+            // Check if GLTFLoader is available
+            if (typeof THREE.GLTFLoader === 'undefined') {
+              throw new Error('GLTFLoader not available');
+            }
+            
+            console.log(`🔄 Loading model from: ${modelPath}`);
+            const loader = new THREE.GLTFLoader();
+            
+            // Add timeout to prevent hanging
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('Model loading timeout')), 10000);
+            });
+            
+            const gltf = await Promise.race([
+              loader.loadAsync(modelPath),
+              timeoutPromise
+            ]);
+            
+            const loadedModel = gltf.scene;
+            
+            // Scale and position the model
+            loadedModel.scale.set(0.5, 0.5, 0.5);
+            loadedModel.position.set(0, 0, 0);
+            
+            // Add lighting to the model
+            loadedModel.traverse((child) => {
+              if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                // Improve material properties
+                if (child.material) {
+                  child.material.needsUpdate = true;
+                }
+              }
+            });
+            
+            console.log(`✅ 3D model loaded successfully: ${modelPath}`);
+            console.log(`📦 Model info:`, {
+              name: loadedModel.name,
+              children: loadedModel.children.length,
+              type: loadedModel.type
+            });
+            return loadedModel;
+          } catch (error) {
+            console.error(`❌ Failed to load 3D model from ${modelPath}:`, error);
+            throw error; // Re-throw to let caller handle
+          }
+        }
+        
+        // Removed fallback model function - no longer needed
+        
+        // Try to load amphora_s.glb only - this is our preferred model
+        const modelPaths = [
+          './assets/amphora_s.glb'  // Only try amphora_s.glb
+        ];
+        
+        // Load all available models
+        allModels = [];
+        let gltfLoaderAvailable = typeof THREE.GLTFLoader !== 'undefined';
+        
+        if (gltfLoaderAvailable) {
+          console.log('GLTFLoader is available, attempting to load amphora_s.glb');
+          let modelLoaded = false;
+          
+          for (const modelPath of modelPaths) {
+            try {
+              console.log(`🔄 Attempting to load amphora_s.glb from: ${modelPath}`);
+              const loadedModel = await loadModel(modelPath);
+              allModels.push(loadedModel);
+              console.log(`✅ Successfully loaded amphora_s.glb from: ${modelPath}`);
+              modelLoaded = true;
+              console.log('🎉 Successfully loaded amphora_s.glb - this is our preferred model!');
+              break; // Stop after loading amphora_s.glb
+            } catch (error) {
+              console.error(`❌ Failed to load amphora_s.glb from ${modelPath}:`, error);
+            }
+          }
+          
+          if (!modelLoaded) {
+            console.log('⚠️ amphora_s.glb failed to load, will create fallback models');
+          }
+        } else {
+          console.log('❌ GLTFLoader not available, will use fallback models');
+        }
+        
+        // No fallback models - only use amphora_s.glb
+        if (allModels.length === 0) {
+          console.log('❌ No models loaded - amphora_s.glb failed to load');
+          showError('Failed to load amphora_s.glb model. Please check the file exists.');
+          return;
+        }
+        
+        // Set the first model as current
+        model = allModels[0];
         
         // Create anchor group for the target
         anchorGroup = mindarThree.addAnchor(0);
-        anchorGroup.group.add(model);
+        
+        // Add model to scene - initially hidden until 5 seconds after no target detection
+        if (model) {
+          scene.add(model);
+          model.visible = false; // Initially hidden
+          
+          // Position model closer to camera for better visibility
+          model.position.set(0, 0, -0.5);
+          model.scale.set(0.5, 0.5, 0.5);
+          
+          console.log('📦 Model added to scene:', {
+            name: model.name,
+            type: model.type,
+            visible: model.visible,
+            position: model.position,
+            scale: model.scale,
+            children: model.children ? model.children.length : 0
+          });
+          console.log('🎭 Scene children count:', scene.children.length);
+          console.log('📷 Camera position:', camera.position);
+          console.log('📏 Camera near/far:', camera.near, camera.far);
+          
+          // Log model details
+          if (model.name && model.name.includes('Sketchfab')) {
+            console.log('⚠️ WARNING: Loaded Sketchfab model instead of amphora_s.glb!');
+          } else if (model.name && model.name.includes('FALLBACK')) {
+            console.log('⚠️ WARNING: Using fallback model - amphora_s.glb failed to load!');
+          } else if (model.name && model.name.includes('amphora')) {
+            console.log('✅ SUCCESS: Loaded amphora_s.glb model!');
+          }
+        }
+        
+        // Removed test sphere - no longer needed
+        
+        // Create a simple camera for direct rendering (like index-local)
+        const directCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        directCamera.position.set(0, 0, 2);
+        
+        // Create a simple renderer for direct rendering
+        const directRenderer = new THREE.WebGLRenderer({ 
+          canvas: document.getElementById('ar-canvas'),
+          antialias: true 
+        });
+        directRenderer.setSize(window.innerWidth, window.innerHeight);
+        directRenderer.setClearColor(0x000000, 1);
+        
+        // Add lighting for direct rendering
+        const directAmbientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(directAmbientLight);
+        
+        const directDirectionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directDirectionalLight.position.set(10, 10, 10);
+        scene.add(directDirectionalLight);
+        
+        // Hide the original MindAR canvas when in video mode
+        const originalCanvas = mindarThree.renderer.domElement;
+        originalCanvas.style.display = 'none';
         
         // Add button event listeners
-        document.getElementById('design-btn').addEventListener('click', changeDesign);
-        document.getElementById('history-btn').addEventListener('click', showHistory);
-        document.getElementById('business-btn').addEventListener('click', showBusiness);
+        const designBtn = document.getElementById('design-btn');
+        const historyBtn = document.getElementById('history-btn');
+        const businessBtn = document.getElementById('business-btn');
+        
+        if (designBtn) {
+          designBtn.addEventListener('click', () => {
+            console.log('🎨 Design button clicked');
+            changeDesign();
+          });
+          console.log('✅ Design button event listener added');
+        }
+        
+        if (historyBtn) {
+          historyBtn.addEventListener('click', () => {
+            console.log('📚 History button clicked');
+            showHistory();
+          });
+          console.log('✅ History button event listener added');
+        }
+        
+        if (businessBtn) {
+          businessBtn.addEventListener('click', () => {
+            console.log('💰 Business button clicked');
+            showBusiness();
+          });
+          console.log('✅ Business button event listener added');
+        }
+        
+        // Initialize interaction controls
+        initInteractionControls();
         
         // Start AR
         updateProgress('Initializing camera', 80);
         await mindarThree.start();
+        
+        // Add target detection event listeners
+        try {
+          // Try different event listener methods for different MindAR versions
+          let eventListenersAdded = false;
+          
+          // Method 1: onTargetFound/onTargetLost (older versions)
+          if (mindarThree.onTargetFound && mindarThree.onTargetLost) {
+            mindarThree.onTargetFound((targetIndex) => {
+              targetDetected = true;
+              stopFallbackTimer();
+              deactivateFallbackMode();
+              // Hide model when target is found
+              if (model) {
+                model.visible = false;
+              }
+              // Clear any pending model display timer
+              if (modelDisplayTimer) {
+                clearTimeout(modelDisplayTimer);
+                modelDisplayTimer = null;
+              }
+            });
+            
+            mindarThree.onTargetLost((targetIndex) => {
+              targetDetected = false;
+              startFallbackTimer();
+              // Hide model when target is lost, will be shown after 5 seconds
+              if (model) {
+                model.visible = false;
+              }
+              // Reset model display timer
+              if (modelDisplayTimer) {
+                clearTimeout(modelDisplayTimer);
+                modelDisplayTimer = null;
+              }
+            });
+            
+            eventListenersAdded = true;
+          }
+          
+          // Method 2: addEventListener (newer versions)
+          if (!eventListenersAdded && mindarThree.addEventListener) {
+            mindarThree.addEventListener('targetFound', (event) => {
+              targetDetected = true;
+              stopFallbackTimer();
+              deactivateFallbackMode();
+              // Hide model when target is found
+              if (model) {
+                model.visible = false;
+              }
+              // Clear any pending model display timer
+              if (modelDisplayTimer) {
+                clearTimeout(modelDisplayTimer);
+                modelDisplayTimer = null;
+              }
+            });
+            
+            mindarThree.addEventListener('targetLost', (event) => {
+              targetDetected = false;
+              startFallbackTimer();
+              // Hide model when target is lost, will be shown after 5 seconds
+              if (model) {
+                model.visible = false;
+              }
+              // Reset model display timer
+              if (modelDisplayTimer) {
+                clearTimeout(modelDisplayTimer);
+                modelDisplayTimer = null;
+              }
+            });
+            
+            eventListenersAdded = true;
+          }
+          
+          // Method 3: Check if renderer has event methods
+          if (!eventListenersAdded && mindarThree.renderer && mindarThree.renderer.addEventListener) {
+            mindarThree.renderer.addEventListener('targetFound', (event) => {
+              targetDetected = true;
+              stopFallbackTimer();
+              deactivateFallbackMode();
+              // Hide model when target is found
+              if (model) {
+                model.visible = false;
+              }
+              // Clear any pending model display timer
+              if (modelDisplayTimer) {
+                clearTimeout(modelDisplayTimer);
+                modelDisplayTimer = null;
+              }
+            });
+            
+            mindarThree.renderer.addEventListener('targetLost', (event) => {
+              targetDetected = false;
+              startFallbackTimer();
+              // Hide model when target is lost, will be shown after 5 seconds
+              if (model) {
+                model.visible = false;
+              }
+              // Reset model display timer
+              if (modelDisplayTimer) {
+                clearTimeout(modelDisplayTimer);
+                modelDisplayTimer = null;
+              }
+            });
+            
+            eventListenersAdded = true;
+          }
+          
+          if (!eventListenersAdded) {
+            // Using polling fallback
+          }
+        } catch (error) {
+          console.warn('Could not add event listeners:', error);
+        }
+        
+        // Always use polling as fallback
+        setInterval(() => {
+          if (anchorGroup && anchorGroup.group) {
+            const isVisible = anchorGroup.group.visible;
+            if (isVisible && !targetDetected) {
+              targetDetected = true;
+              stopFallbackTimer();
+              deactivateFallbackMode();
+              // Hide model when target is found
+              if (model) {
+                model.visible = false;
+              }
+              // Clear any pending model display timer
+              if (modelDisplayTimer) {
+                clearTimeout(modelDisplayTimer);
+                modelDisplayTimer = null;
+              }
+            } else if (!isVisible && targetDetected) {
+              targetDetected = false;
+              startFallbackTimer();
+              // Hide model when target is lost, will be shown after 5 seconds
+              if (model) {
+                model.visible = false;
+              }
+              // Reset model display timer
+              if (modelDisplayTimer) {
+                clearTimeout(modelDisplayTimer);
+                modelDisplayTimer = null;
+              }
+            }
+          }
+        }, 100);
         
         // Show AR container
         document.getElementById('ar-container').style.display = 'block';
@@ -632,62 +1062,161 @@
         // Show initial message
         showMessage("Point your camera at the Greek pattern to see the artifact", 5000);
         
-        // Add target detection event listeners
-        mindarThree.onTargetFound((targetIndex) => {
-          console.log("Target found");
-          targetDetected = true;
-          stopFallbackTimer();
-          deactivateFallbackMode();
-        });
+        // Start fallback timer if no target detected after 3 seconds
+        setTimeout(() => {
+          if (!targetDetected && !fallbackMode) {
+            startFallbackTimer();
+          }
+        }, 3000);
         
-        mindarThree.onTargetLost((targetIndex) => {
-          console.log("Target lost");
-          targetDetected = false;
-          startFallbackTimer();
-        });
+        // Add delayed model display logic
+        let modelDisplayTimer = null;
+        let modelDisplayDelay = 5000; // 5 seconds delay
         
-        // Render loop
-        renderer.setAnimationLoop(() => {
+        // Render loop - use direct rendering like index-local
+        function animate() {
+          requestAnimationFrame(animate);
+          
           // Update tracking status
           const trackingStatus = document.getElementById('tracking-status');
           
-          if (fallbackMode) {
-            // In fallback mode, model is always visible
-            model.visible = true;
-          } else {
-            // In normal mode, model visibility depends on target detection
-            model.visible = anchorGroup.group.visible;
-          }
+          // Check if we should show video background (no target detected or fallback mode)
+          const shouldShowVideo = !targetDetected || fallbackMode;
           
-          if (anchorGroup.group.visible || fallbackMode) {
-            trackingStatus.textContent = fallbackMode ? "Fallback mode active" : "Target detected";
-            trackingStatus.style.background = fallbackMode ? "rgba(245, 158, 11, 0.8)" : "rgba(34, 197, 94, 0.8)";
+          if (shouldShowVideo && mindarThree.video) {
+            // Hide MindAR canvas and show our direct renderer
+            const originalCanvas = mindarThree.renderer.domElement;
+            originalCanvas.style.display = 'none';
+            document.getElementById('ar-canvas').style.display = 'block';
             
-            // Hide pattern guide when target is detected or in fallback mode
-            document.getElementById('pattern-guide').style.display = 'none';
+            // Show video background when no target detected
+            directRenderer.autoClear = false;
+            directRenderer.clear();
             
-            // Show success message only once and only in normal mode
+            // Create video texture if not exists
+            if (!directRenderer.videoTexture) {
+              directRenderer.videoTexture = new THREE.VideoTexture(mindarThree.video);
+              directRenderer.videoTexture.minFilter = THREE.LinearFilter;
+              directRenderer.videoTexture.magFilter = THREE.LinearFilter;
+            }
+            
+            // Update video texture
+            directRenderer.videoTexture.needsUpdate = true;
+            
+            // Create background plane if not exists - make it full screen
+            if (!directRenderer.backgroundPlane) {
+              // Calculate proper dimensions for full screen coverage
+              const aspectRatio = window.innerWidth / window.innerHeight;
+              let planeWidth, planeHeight;
+              
+              // Use much larger dimensions to ensure full coverage
+              if (aspectRatio > 1) {
+                // Landscape - width is larger
+                planeWidth = 12;
+                planeHeight = planeWidth / aspectRatio;
+              } else {
+                // Portrait - height is larger
+                planeHeight = 12;
+                planeWidth = planeHeight * aspectRatio;
+              }
+              
+              const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+              const material = new THREE.MeshBasicMaterial({ 
+                map: directRenderer.videoTexture,
+                side: THREE.DoubleSide
+              });
+              directRenderer.backgroundPlane = new THREE.Mesh(geometry, material);
+              directRenderer.backgroundPlane.position.z = -6; // Much further back for full coverage
+              scene.add(directRenderer.backgroundPlane);
+              
+              console.log('🎬 Created full screen video background:', {
+                planeWidth, planeHeight, aspectRatio,
+                screenWidth: window.innerWidth, screenHeight: window.innerHeight,
+                zPosition: directRenderer.backgroundPlane.position.z
+              });
+            }
+            
+            // Handle delayed model display logic
             if (!targetDetected && !fallbackMode) {
-              showSuccessMessage();
-              targetDetected = true;
+              // Start timer for delayed model display
+              if (!modelDisplayTimer) {
+                modelDisplayTimer = setTimeout(() => {
+                  if (model && !targetDetected && !fallbackMode) {
+                    model.visible = true;
+                    console.log('Model displayed after 5 seconds of no target detection');
+                  }
+                }, modelDisplayDelay);
+              }
+            } else if (fallbackMode) {
+              // In fallback mode, show model immediately
+              if (model) {
+                model.visible = true;
+              }
+              // Clear any pending timer
+              if (modelDisplayTimer) {
+                clearTimeout(modelDisplayTimer);
+                modelDisplayTimer = null;
+              }
+            }
+            
+            // Position model in front of camera for video mode
+            if (model && model.visible) {
+              model.position.set(0, 0, -0.3);
+              model.scale.set(0.3, 0.3, 0.3);
             }
           } else {
-            trackingStatus.textContent = "Target not detected";
-            trackingStatus.style.background = "rgba(220, 38, 38, 0.8)";
-            model.visible = false;
+            // Normal AR mode - show MindAR canvas and hide our renderer
+            const originalCanvas = mindarThree.renderer.domElement;
+            originalCanvas.style.display = 'block';
+            document.getElementById('ar-canvas').style.display = 'none';
             
-            // Show pattern guide when target is not detected
-            document.getElementById('pattern-guide').style.display = 'block';
-            targetDetected = false;
+            // Clear background plane
+            if (directRenderer.backgroundPlane) {
+              scene.remove(directRenderer.backgroundPlane);
+              directRenderer.backgroundPlane = null;
+            }
+            
+            // Position model normally for AR mode
+            if (model) {
+              model.position.set(0, 0, -0.5);
+              model.scale.set(0.5, 0.5, 0.5);
+              model.visible = true; // Always visible in AR mode
+            }
+            
+            // Clear any pending model display timer when target is detected
+            if (modelDisplayTimer) {
+              clearTimeout(modelDisplayTimer);
+              modelDisplayTimer = null;
+            }
           }
           
-          // Update model rotation when visible
+          if (fallbackMode) {
+            trackingStatus.textContent = "Fallback mode active - showing model in video";
+            trackingStatus.style.background = "rgba(245, 158, 11, 0.8)";
+            document.getElementById('pattern-guide').style.display = 'none';
+          } else if (targetDetected) {
+            trackingStatus.textContent = "Target detected";
+            trackingStatus.style.background = "rgba(34, 197, 94, 0.8)";
+            document.getElementById('pattern-guide').style.display = 'none';
+          } else {
+            trackingStatus.textContent = "Target not detected - showing model in video";
+            trackingStatus.style.background = "rgba(220, 38, 38, 0.8)";
+            document.getElementById('pattern-guide').style.display = 'block';
+          }
+          
+          // Update model rotation only when visible
           if (model && model.visible) {
             model.rotation.y += 0.01;
           }
           
-          renderer.render(scene, camera);
-        });
+          // Only render with direct renderer when in video mode
+          if (shouldShowVideo) {
+            directRenderer.render(scene, directCamera);
+          }
+        }
+        
+        // Start the animation loop
+        animate();
         
       } catch (error) {
         console.error("AR initialization failed:", error);
@@ -695,22 +1224,109 @@
       }
     }
     
+    // Global variables for model management
+    let currentModelIndex = 0;
+    let allModels = [];
+    let scene; // Global scene variable
+    
     // Button functions
     function changeDesign() {
       if (!model) return;
       
+      // Increase scale by 20%
       model.scale.multiplyScalar(1.2);
+      
+      // Limit maximum scale to 3x
+      const maxScale = 3.0;
+      model.scale.x = Math.min(maxScale, model.scale.x);
+      model.scale.y = Math.min(maxScale, model.scale.y);
+      model.scale.z = Math.min(maxScale, model.scale.z);
+      
       showMessage("Design: Enhanced visual prominence<br>Scale increased by 20%<br>Current scale: " + model.scale.x.toFixed(1) + "x");
     }
     
+    // Function to force show model for testing
+    function forceShowModel() {
+      if (!model) {
+        showMessage("No model available");
+        return;
+      }
+      
+      // Force model to be visible and in front of camera
+      model.visible = true;
+      model.position.set(0, 0, -0.5);
+      model.scale.set(0.5, 0.5, 0.5);
+      
+      console.log('🔧 Force showing model:');
+      console.log('📦 Model:', model);
+      console.log('👁️ Model visible:', model.visible);
+      console.log('📍 Model position:', model.position);
+      console.log('📏 Model scale:', model.scale);
+      console.log('🏷️ Model name:', model.name);
+      console.log('🎭 Scene children:', scene ? scene.children.length : 'Scene not available');
+      
+      // Show detailed model info
+      if (model.children && model.children.length > 0) {
+        console.log('👶 Model children:', model.children.length);
+        model.children.forEach((child, index) => {
+          console.log(`  Child ${index}:`, {
+            name: child.name,
+            type: child.type,
+            visible: child.visible
+          });
+        });
+      }
+      
+      showMessage(`Model forced visible for testing<br>Model: ${model.name || 'Unknown'}<br>Children: ${model.children ? model.children.length : 0}`);
+    }
+    
+    // Function to switch between different models
+    async function switchModel() {
+      if (allModels.length === 0) return;
+      
+      // Remove current model from scene
+      if (model && anchorGroup) {
+        anchorGroup.group.remove(model);
+      }
+      
+      // Switch to next model
+      currentModelIndex = (currentModelIndex + 1) % allModels.length;
+      model = allModels[currentModelIndex];
+      
+      // Add new model to scene
+      if (anchorGroup && model) {
+        anchorGroup.group.add(model);
+        model.visible = targetDetected || fallbackMode;
+      }
+      
+      // Get model name
+      let modelName = 'Unknown Model';
+      if (model.name) {
+        modelName = model.name;
+      } else {
+        const modelNames = ['Amphora', 'Small Amphora', 'Jug', 'Blue Box', 'Red Box', 'Green Box', 'Orange Box'];
+        modelName = modelNames[currentModelIndex] || `Model ${currentModelIndex + 1}`;
+      }
+      
+      showMessage(`Switched to: ${modelName}<br>Model ${currentModelIndex + 1} of ${allModels.length}`);
+    }
+    
     function showHistory() {
-      const historyText = "Ancient Greek Amphora<br><br>Period: 5th Century BCE<br>Purpose: Ceremonial vessel for storing wine and oil<br>Cultural Significance: Symbol of trade between Athens and other city-states. Often given as prizes in athletic competitions.";
-      showMessage(historyText, 5000);
+      const historyText = "Ancient Greek Amphora<br><br>Period: 5th Century BCE<br>Purpose: Ceremonial vessel for storing wine and oil<br>Cultural Significance: Symbol of trade between Athens and other city-states. Often given as prizes in athletic competitions.<br><br><button onclick='editHistory()' style='background: #667eea; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-top: 10px;'>✏️ Edit</button>";
+      showMessage(historyText, 0); // No auto-hide for edit functionality
+    }
+    
+    function editHistory() {
+      const newText = prompt("Edit the history text:", "Ancient Greek Amphora\n\nPeriod: 5th Century BCE\nPurpose: Ceremonial vessel for storing wine and oil\nCultural Significance: Symbol of trade between Athens and other city-states. Often given as prizes in athletic competitions.");
+      if (newText !== null) {
+        const formattedText = newText.replace(/\n/g, '<br>') + "<br><br><button onclick='editHistory()' style='background: #667eea; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-top: 10px;'>✏️ Edit</button>";
+        showMessage(formattedText, 0);
+      }
     }
     
     function showBusiness() {
-      const businessText = "Business Models:<br><br>- Free: Basic content access<br>- Premium: $4.99/month (includes expert commentary)<br>- Educational License: $299/year<br>- Sponsored Content Partnerships";
-      showMessage(businessText, 6000);
+      const businessText = "Exhibition Pricing:<br><br>🎫 Adult Ticket: $15.00<br>👨‍🎓 Student Ticket: $10.00<br>👴 Senior Ticket: $12.00<br>👶 Child (under 12): Free<br>👨‍👩‍👧‍👦 Family Pass: $40.00<br><br>📅 Opening Hours: 9:00 AM - 6:00 PM<br>📍 Location: Cultural Heritage Museum<br>📞 Contact: (555) 123-4567";
+      showMessage(businessText, 8000);
     }
     
     // Handle window resize
@@ -722,11 +1338,195 @@
     });
     
     // Retry button
-    document.getElementById('retry-btn').addEventListener('click', () => {
+    document.getElementById('retry-btn').addEventListener('click', async () => {
       document.getElementById('error-panel').style.display = 'none';
       document.getElementById('loading').style.display = 'flex';
+      
+      // Reset progress
+      updateProgress('Retrying AR initialization', 0);
+      
+      // Wait a moment before retrying
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Retry initialization
       initAR();
     });
+    
+    // Direct model interaction system - simplified like index-local.html
+    function initInteractionControls() {
+      const canvas = document.getElementById('ar-canvas');
+      
+      console.log('🔧 Initializing direct model interaction');
+      console.log('📦 Canvas element:', canvas);
+      
+      // Mouse event listeners - use document level like index-local.html
+      document.addEventListener('mousedown', onMouseDown);
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+      document.addEventListener('wheel', onMouseWheel);
+      document.addEventListener('contextmenu', (e) => e.preventDefault()); // Prevent right-click menu
+        
+      // Touch event listeners for mobile
+      document.addEventListener('touchstart', onTouchStart);
+      document.addEventListener('touchmove', onTouchMove);
+      document.addEventListener('touchend', onTouchEnd);
+        
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'r' || event.key === 'R') {
+          resetModel();
+        }
+      });
+        
+      console.log('✅ Direct interaction event listeners added to document');
+      console.log('💡 Interaction Guide:');
+      console.log('   - Mouse drag: Rotate model');
+      console.log('   - Mouse wheel: Scale model');
+      console.log('   - Touch drag: Rotate model');
+      console.log('   - Touch pinch: Scale model');
+      console.log('   - Press R: Reset model');
+    }
+    
+    // Removed toggleInteraction function - no longer needed with direct interaction
+    
+    function onMouseDown(event) {
+      if (!model || !model.visible) {
+        return;
+      }
+      
+      isMouseDown = true;
+      mouseX = event.clientX;
+      mouseY = event.clientY;
+      
+      console.log('🖱️ Mouse down:', { clientX: event.clientX, clientY: event.clientY });
+    }
+    
+    function onMouseMove(event) {
+      if (!model || !model.visible || !isMouseDown) {
+        return;
+      }
+      
+      const deltaX = event.clientX - mouseX;
+      const deltaY = event.clientY - mouseY;
+      
+      if (model) {
+        model.rotation.y += deltaX * 0.01;
+        model.rotation.x += deltaY * 0.01;
+        console.log('🔄 Rotating model:', { deltaX, deltaY, rotation: model.rotation });
+      }
+      
+      mouseX = event.clientX;
+      mouseY = event.clientY;
+    }
+    
+    function onMouseUp(event) {
+      isMouseDown = false;
+      console.log('🖱️ Mouse up');
+    }
+    
+    function onMouseWheel(event) {
+      if (!model || !model.visible) {
+        return;
+      }
+      
+      event.preventDefault();
+      const scaleFactor = event.deltaY > 0 ? 0.95 : 1.05;
+      model.scale.multiplyScalar(scaleFactor);
+      
+      // Limit scale
+      const minScale = 0.1;
+      const maxScale = 3.0;
+      model.scale.x = Math.max(minScale, Math.min(maxScale, model.scale.x));
+      model.scale.y = Math.max(minScale, Math.min(maxScale, model.scale.y));
+      model.scale.z = Math.max(minScale, Math.min(maxScale, model.scale.z));
+      
+      console.log('📏 Scaling model:', { deltaY: event.deltaY, scaleFactor, scale: model.scale });
+    }
+    
+    function onTouchStart(event) {
+      if (!model || !model.visible) return;
+      
+      event.preventDefault();
+      if (event.touches.length === 1) {
+        const touch = event.touches[0];
+        mouseX = touch.clientX;
+        mouseY = touch.clientY;
+        isMouseDown = true;
+        console.log('📱 Touch start - rotate mode activated');
+      } else if (event.touches.length === 2) {
+        const touch1 = event.touches[0];
+        const touch2 = event.touches[1];
+        scaleStartDistance = Math.sqrt(
+          Math.pow(touch2.clientX - touch1.clientX, 2) +
+          Math.pow(touch2.clientY - touch1.clientY, 2)
+        );
+        console.log('📱 Touch start - scale mode activated');
+      }
+    }
+    
+    function onTouchMove(event) {
+      if (!model || !model.visible) return;
+      
+      event.preventDefault();
+      
+      if (event.touches.length === 1 && isMouseDown) {
+        const touch = event.touches[0];
+        const deltaX = touch.clientX - mouseX;
+        const deltaY = touch.clientY - mouseY;
+        
+        if (model) {
+          model.rotation.y += deltaX * 0.01;
+          model.rotation.x += deltaY * 0.01;
+          console.log('📱 Touch rotating model:', { deltaX, deltaY, rotation: model.rotation });
+        }
+        
+        mouseX = touch.clientX;
+        mouseY = touch.clientY;
+      } else if (event.touches.length === 2) {
+        const touch1 = event.touches[0];
+        const touch2 = event.touches[1];
+        const currentDistance = Math.sqrt(
+          Math.pow(touch2.clientX - touch1.clientX, 2) +
+          Math.pow(touch2.clientY - touch1.clientY, 2)
+        );
+        
+        const scaleFactor = currentDistance / scaleStartDistance;
+        model.scale.multiplyScalar(scaleFactor);
+        
+        // Limit scale
+        const minScale = 0.1;
+        const maxScale = 3.0;
+        model.scale.x = Math.max(minScale, Math.min(maxScale, model.scale.x));
+        model.scale.y = Math.max(minScale, Math.min(maxScale, model.scale.y));
+        model.scale.z = Math.max(minScale, Math.min(maxScale, model.scale.z));
+        
+        scaleStartDistance = currentDistance;
+        console.log('📱 Touch scaling model:', { scaleFactor, scale: model.scale });
+      }
+    }
+    
+    function onTouchEnd(event) {
+      isMouseDown = false;
+      console.log('📱 Touch end');
+    }
+    
+    function resetModel() {
+      if (!model) return;
+      
+      // Reset position, rotation, and scale
+      model.position.set(0, 0, -0.5);
+      model.rotation.set(0, 0, 0);
+      model.scale.set(0.5, 0.5, 0.5);
+      
+      // Reset interaction states
+      isDragging = false;
+      isScaling = false;
+      isRotating = false;
+      
+      showMessage('Model reset to original position');
+    }
+    
+    // Removed interaction control visibility functions - no longer needed
     
     // Start AR application
     initAR();
